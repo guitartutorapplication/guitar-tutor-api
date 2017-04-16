@@ -24,9 +24,10 @@ class DbHandler {
      */
     public function getUserChords($user_id)
     {
-        $stmt = $this->conn->prepare("SELECT user_chord.chord_id AS CHORD_ID FROM "
-                . "user LEFT OUTER JOIN user_chord ON (user.user_id = "
-                . "user_chord.user_id) WHERE user.user_id = ?");
+        $stmt = $this->conn->prepare("SELECT chord.*, user_chord.NUM_TIMES_PRACT "
+                . "FROM user LEFT OUTER JOIN user_chord ON (user.user_id = "
+                . "user_chord.user_id) INNER JOIN chord ON (user_chord.chord_id "
+                . "= chord.chord_id) WHERE user.user_id = ?");
         
         // insert parameters into sql statement
         $stmt->bind_param("s", $user_id);
@@ -56,10 +57,26 @@ class DbHandler {
      */
     public function getAllSongs() 
     {
-        $stmt = $this->conn->prepare("SELECT song.*, GROUP_CONCAT(song_chord.chord_id) "
-                . "AS CHORDS FROM song INNER JOIN song_chord ON song_chord.SONG_ID "
-                . "= song.SONG_ID GROUP BY song.SONG_ID");
+        $stmt = $this->conn->prepare("SELECT * FROM song");
 
+        $stmt->execute();       
+        $songs = $stmt->get_result();
+        $stmt->close();
+        
+        return $songs;
+    }
+    
+    /**
+     * Retrieving chords for song
+     */
+    public function getSongChords($song_id) 
+    {
+        $stmt = $this->conn->prepare("SELECT chord.* FROM song_chord INNER JOIN "
+                . "song ON song.SONG_ID = song_chord.SONG_ID INNER JOIN chord ON"
+                . " song_chord.CHORD_ID = chord.CHORD_ID WHERE song.SONG_ID = ?");
+        // insert parameters into sql statement
+        $stmt->bind_param("s", $song_id);
+        
         $stmt->execute();       
         $songs = $stmt->get_result();
         $stmt->close();
@@ -139,16 +156,15 @@ class DbHandler {
         $stmt->bind_param("ss", $email, $password);
         
         $stmt->execute();
-        $stmt->store_result();
-        $num_rows = $stmt->num_rows;
+        $user_id = $stmt->get_result()->fetch_assoc();
         $stmt->close();
         
-        // returns true if one or more results are found (successful login)
-        return $num_rows > 0;
+        // returns user_id
+        return $user_id;
     }
     
     /**
-     * Get user details by specified email 
+     * Get user details by specified id 
      * @param string $user_id user's id
      */
     public function getUserDetails($user_id)
@@ -192,18 +208,55 @@ class DbHandler {
      * @param int $chord_id the chord's id
      * @return bool if add was successful or not
      */
-    public function addNewUserChord($user_id, $chord_id)
+    public function addNewUserChord($user_id, $chord_id, $achievements_update, 
+            $level_update)
     {
-        $stmt = $this->conn->prepare("INSERT INTO user_chord(user_id, chord_id, "
+        $success = true; 
+        
+        $this->conn->begin_transaction();
+        
+        $stmt_chord = $this->conn->prepare("INSERT INTO user_chord(user_id, chord_id, "
                 . "num_times_pract) VALUES(?, ?, " .DEFAULT_NUM_TIMES_PRACT. ")");
+        $stmt_chord->bind_param("ss", $user_id, $chord_id);
+        if (!$stmt_chord->execute()) {
+            $success = false;
+        }
         
-        // insert parameters into sql statement
-        $stmt->bind_param("ss", $user_id, $chord_id);
+        if ($achievements_update) {
+            $stmt_achievements = $this->conn->prepare("UPDATE user SET achievements "
+                    . "= achievements + 100 WHERE user_id = ?");
+            $stmt_achievements->bind_param("s", $user_id);
+            if (!$stmt_achievements->execute()) {
+                $success = false;
+            }
+        }
         
-        $result = $stmt->execute();
-        $stmt->close();
+        if ($level_update) {
+            $stmt_level = $this->conn->prepare("UPDATE user SET level "
+                    . "= level + 1 WHERE user_id = ?");
+            $stmt_level->bind_param("s", $user_id);
+            if (!$stmt_level->execute()) {
+                $success = false;
+            }
+        }
         
-        return $result; 
+        $stmt_get = $this->conn->prepare("SELECT level, achievements FROM user "
+                . "WHERE user_id = ?");
+        $stmt_get->bind_param("s", $user_id);
+        $stmt_get->execute();       
+        $level_details = $stmt_get->get_result()->fetch_assoc();
+        if ($level_details == null) {
+            $success = false;
+        }
+        
+        if ($success) {
+            $this->conn->commit();
+            return $level_details;
+        }
+        else {
+            $this->conn->rollback();
+            return null;
+        }
     }
     
     /**
@@ -247,17 +300,58 @@ class DbHandler {
         return $result; 
     }
     
-    public function setChordNumTimesPract($user_id, $chord_id, $num_times_pract)
-    {
-        $stmt = $this->conn->prepare("UPDATE user_chord SET num_times_pract = ? "
-                . "WHERE user_id = ? AND chord_id = ?");
+    public function updateChordNumTimesPract($user_id, $chord_ids, $achievements_update,
+            $level_update)
+    {       
+        $success = true; 
+        
+        $this->conn->begin_transaction();
+        
+        $stmt_chord = $this->conn->prepare("UPDATE user_chord SET num_times_pract = "
+                . "num_times_pract + 1 WHERE user_id = ? AND chord_id IN (" . 
+                implode(",", $chord_ids) . ")");
         
         // insert parameters into sql statement
-        $stmt->bind_param("sss", $num_times_pract, $user_id, $chord_id);
-                
-        $result = $stmt->execute();
-        $stmt->close();
+        $stmt_chord->bind_param("s", $user_id);
         
-        return $result;
+        if (!$stmt_chord->execute()) {
+            $success = false;
+        }
+
+        if ($achievements_update) {
+            $stmt_achievements = $this->conn->prepare("UPDATE user SET achievements "
+                    . "= achievements + 15 WHERE user_id = ?");
+            $stmt_achievements->bind_param("s", $user_id);
+            if (!$stmt_achievements->execute()) {
+                $success = false;
+            }
+        }
+        
+        if ($level_update) {
+            $stmt_level = $this->conn->prepare("UPDATE user SET level "
+                    . "= level + 1 WHERE user_id = ?");
+            $stmt_level->bind_param("s", $user_id);
+            if (!$stmt_level->execute()) {
+                $success = false;
+            }
+        }
+        
+        $stmt_get = $this->conn->prepare("SELECT level, achievements FROM user "
+                . "WHERE user_id = ?");
+        $stmt_get->bind_param("s", $user_id);
+        $stmt_get->execute();       
+        $level_details = $stmt_get->get_result()->fetch_assoc();
+        if ($level_details == null) {
+            $success = false;
+        }
+        
+        if ($success) {
+            $this->conn->commit();
+            return $level_details;
+        }
+        else {
+            $this->conn->rollback();
+            return null;
+        }
     }
 }

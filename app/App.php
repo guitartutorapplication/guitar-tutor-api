@@ -22,8 +22,8 @@ class App extends Slim
         $this->post('/users/login', array($this, 'userLogin'));
         $this->post('/users/:id/chords', array($this, 'addUserChord'));
         $this->get('/users/:id/chords', array($this, 'getUserChords'));
-        $this->put('/users/:user_id/chords/:chord_id', 
-                array($this, 'updateUserChord'));    
+        $this->put('/users/:user_id/chords/', 
+                array($this, 'updateUserChords'));    
     }
     
     public function setDbHandler($dbHandler)
@@ -33,34 +33,41 @@ class App extends Slim
     
     function getUserChords($user_id)
     {
-        $response = array();
         // get user's chords
         $user_chords = $this->db->getUserChords($user_id);
         
-        $response["error"] = false;
-        $response["user_chords"] = array();
-                
-        while ($user_chord = $user_chords->fetch_assoc())
-        {
-            $temp = array();
-            $temp["chord_id"] = $user_chord["CHORD_ID"];
-            // pushing values onto end of array
-            array_push($response["user_chords"], $temp);           
+        if ($user_chords != null) {
+            $response = array();
+            while ($chord = $user_chords->fetch_assoc())
+            {
+                $temp = array();
+                $temp["chord_id"] = $chord["CHORD_ID"];
+                $temp["name"] = $chord["NAME"];
+                $temp["type"] = $chord["TYPE"];
+                $temp["level_required"] = $chord["LEVEL_REQUIRED"];
+                $temp["diagram_filename"] = $chord["DIAGRAM_FILENAME"];
+                $temp["video_filename"] = $chord["VIDEO_FILENAME"];
+                $temp["audio_filename"] = $chord["AUDIO_FILENAME"];
+                $temp["num_times_pract"] = $chord["NUM_TIMES_PRACT"];
+                // pushing values onto end of array
+                array_push($response, $temp);           
+            }
+
+            $this->echoResponse(200, $response);
         }
-        
-        $this->echoResponse(200, $response);
+        else {
+            $this->echoResponse(500, (object)[]);
+        }
     }
     
     function getUser($user_id)
     {
-        $response = array();
         // get user's details 
         $user = $this->db->getUserDetails($user_id);
 
         if ($user != null) 
         {
-            // respond with success
-            $response["error"] = false;
+            $response = array();
             $response["user_id"] = $user["USER_ID"];
             $response["name"] = $user["NAME"];
             $response["email"] = $user["EMAIL"];
@@ -70,92 +77,60 @@ class App extends Slim
         }
         else 
         {
-            // respond with failure
-            $response["error"] = true;
-            $response["message"] = "An error occured while trying to retrieve details.";
-            $this->echoResponse(500, $response);
+            $this->echoResponse(500, (object)[]);
         }
     }
     
     /**
-     * Update number of times a chord has been practised
+     * Update number of times a chord has been practised (could be multiple chords)
      * method: PUT
-     * URL: /users/id/chords/id
-     * params: user_id, chord_id, num_times_pract
+     * URL: /users/id/chords
+     * params: user_id
      */
-    function updateUserChord($user_id, $chord_id) 
+    function updateUserChords($user_id) 
     {
-        // checking for all required parameters
-        $this->verifyRequiredParams(array('num_times_pract'));
-
-        $response = array();
-
         // reading post parameters
-        $num_times_pract = $this->request->params('num_times_pract');
+        $chord_ids = $this->request->params('chord_ids');
+        
+        $level_details = $this->db->getLevelAndAchievements($user_id); 
 
-        $result = $this->db->setChordNumTimesPract($user_id, $chord_id, $num_times_pract);
-
-        // if new chord number of times practised successfully updated
-        if ($result)
-        {
-            // get user's level and achievements
-            $level_details = $this->db->getLevelAndAchievements($user_id);
-
-            if ($level_details != null)
-            {
-                $level = $level_details["level"];
-                $achievements = $level_details["achievements"];
-
-                if ($achievements < MAX_ACHIEVEMENTS)
-                {
-                    // add to achievements
-                    $achievements += ACHIEVEMENTS_INCREASE;
-                    $remainder = $achievements % ACHIEVEMENTS_DIVISOR;
-
-                    // if achievements is a multiple of 1000
-                    if ($remainder == 0)
-                    {
-                            // progress to next level
-                            $level++; 
-                    }
+        if ($level_details != null) {
+            $achievements = $level_details["achievements"];
+            $level = $level_details["level"];
+            $achievements_update = false;
+            $level_update = false;
+            
+            if ($achievements < MAX_ACHIEVEMENTS) {
+                $achievements_update = true;
+                
+                if (($achievements + 15) >= ($level * ACHIEVEMENTS_DIVISOR)) {
+                    $level_update = true;
                 }
-
-                // set user's level and achievements
-                $result = $this->db->setLevelAndAchievements($user_id, $level, $achievements);
-
-                if ($result)
-                {
-                    // response with success
-                    $response["error"] = false;
-                    $response["message"] = "Number of times chord has been practised "
-                            . "has been successfully updated.";
+            }
+            
+            $level_details = $this->db->updateChordNumTimesPract($user_id, $chord_ids, 
+                    $achievements_update, $level_update);
+            
+            if ($level_details != null) {
+                if (!$level_update && !$achievements_update) {
+                    $this->echoResponse(200, (object)[]);
+                }
+                else {
+                    $response = array();
+                    $response["achievements"] = $level_details["achievements"];
+                    if ($level_update) {
+                        $response["level"] = $level_details["level"];
+                    }
                     $this->echoResponse(200, $response);
                 }
-                else
-                {
-                    // respond with failure
-                    $response["error"] = true; 
-                    $response["message"] = "An error occured while trying to update "
-                        . "user's level details.";
-                    $this->echoResponse(500, $response);
-                }
             }
-            else
-            {
-                // respond with failure
-                $response["error"] = true;
-                $response["message"] = "An error occured while trying to retrieve "
-                        . "user's level details.";
+            else {
+                $this->echoResponse(500, (object)[]);
             }
-
         }
-        else 
-        {
+        else {
             // respond with failure
-            $response["error"] = true;
-            $response["message"] = "An error occured while trying to update the number "
-                    . "of times a chord has been practised.";
-            $this->echoResponse(500, $response);
+            $this->echoResponse(500, (object)[]);
         }
     }
     
@@ -167,76 +142,47 @@ class App extends Slim
      */
     function addUserChord($user_id) 
     {
-        // checking for all required parameters
-        $this->verifyRequiredParams(array('chord_id'));
-
-        $response = array();
-
         // reading post parameters
         $chord_id = $this->request->params('chord_id');
+        
+        $level_details = $this->db->getLevelAndAchievements($user_id); 
 
-        $result = $this->db->addNewUserChord($user_id, $chord_id);
-
-        // if new chord successfully added
-        if ($result)
-        {
-            // get user's level and achievements
-            $level_details = $this->db->getLevelAndAchievements($user_id);
-
-            if ($level_details != null)
-            {
-                $level = $level_details["level"];
-                $achievements = $level_details["achievements"];
-
-                if ($achievements < MAX_ACHIEVEMENTS)
-                {
-                    // add to achievements
-                    $achievements += ACHIEVEMENTS_INCREASE;
-                    $remainder = $achievements % ACHIEVEMENTS_DIVISOR;
-
-                    // if achievements is a multiple of 1000
-                    if ($remainder == 0)
-                    {
-                            // progress to next level
-                            $level++; 
-                    }
+        if ($level_details != null) {
+            $achievements = $level_details["achievements"];
+            $level = $level_details["level"];
+            $achievements_update = false;
+            $level_update = false;
+            
+            if ($achievements < MAX_ACHIEVEMENTS) {
+                $achievements_update = true;
+                
+                if (($achievements + 100) >= ($level * ACHIEVEMENTS_DIVISOR)) {
+                    $level_update = true;
                 }
-
-                // set user's level and achievements
-                $result = $this->db->setLevelAndAchievements($user_id, $level, $achievements);
-
-                if ($result)
-                {
-                    // response with success
-                    $response["error"] = false;
-                    $response["message"] = "Successfully added new chord.";
+            }
+            
+            $level_details = $this->db->addNewUserChord($user_id, $chord_id, 
+                    $achievements_update, $level_update);
+            if ($level_details != null) {
+                if (!$level_update && !$achievements_update) {
+                    $this->echoResponse(200, (object)[]);
+                }
+                else {
+                    $response = array();
+                    $response["achievements"] = $level_details["achievements"];
+                    if ($level_update) {
+                        $response["level"] = $level_details["level"];
+                    }
                     $this->echoResponse(200, $response);
                 }
-                else
-                {
-                    // respond with failure
-                    $response["error"] = true; 
-                    $response["message"] = "An error occured while trying to update "
-                        . "user's level details.";
-                    $this->echoResponse(500, $response);
-                }
             }
-            else
-            {
-                // respond with failure
-                $response["error"] = true;
-                $response["message"] = "An error occured while trying to retrieve "
-                        . "user's level details.";
-                $this->echoResponse(500, $response);
+            else {
+                $this->echoResponse(500, (object)[]);
             }
-
         }
-        else 
-        {
+        else {
             // respond with failure
-            $response["error"] = true;
-            $response["message"] = "An error occured while trying to add new chord.";
-            $this->echoResponse(500, $response);
+            $this->echoResponse(500, (object)[]);
         }
     }
     
@@ -248,27 +194,21 @@ class App extends Slim
      */
     function userLogin() 
     {
-        // checking for all required parameters
-        $this->verifyRequiredParams(array('email', 'password'));
-
-        $response = array();
-
-        // reading post parameters
+         // reading post parameters
         $email = $this->request->params('email');
         $password = $this->request->params('password');  
 
         // check user's login credentials
-        if($this->db->loginUser($email, $password)) 
+        $user_id = $this->db->loginUser($email, $password);
+        if($user_id != null) 
         {
-            $response["error"] = false;
-            $response["message"] = "Login successful.";
+            $response = array();
+            $response["user_id"] = $user_id["user_id"];
             $this->echoResponse(200, $response);
         }
         else
         {
-            $response["error"] = true;
-            $response["message"] = "Login failed. Incorrect email or password.";
-            $this->echoResponse(400, $response);
+            $this->echoResponse(500, (object)[]);
         }
     }
     
@@ -280,9 +220,6 @@ class App extends Slim
      */
     function editUser($user_id) 
     {
-        // checking for all required parameters
-        $this->verifyRequiredParams(array('name', 'email', 'password'));
-
         $response = array();
 
         // reading put parameters
@@ -297,16 +234,12 @@ class App extends Slim
 
         if ($result)
         {
-            // respond with success
-            $response["error"] = false;
-            $response["message"] = "User's details successfully updated.";
+            $response["message"] = "Successfully updated user details.";
             $this->echoResponse(200, $response);
         }
         else
         {
-            // respond with failure
-            $response["error"] = true;
-            $response["message"] = "An error occurred while trying to update user's details.";
+            $response["message"] = "An error occured while updating user details.";
             $this->echoResponse(500, $response);
         }
     }
@@ -319,9 +252,6 @@ class App extends Slim
      */
     function addUser() 
     {
-        // checking for all required parameters
-        $this->verifyRequiredParams(array('name', 'email', 'password'));
-
         // reading post parameters
         $name = $this->request->params('name');
         $email = $this->request->params('email');
@@ -337,22 +267,16 @@ class App extends Slim
         // check for result of registration
         if ($result == USER_SUCCESSFULLY_REGISTERED) 
         {
-            // respond with success
-            $response["error"] = false;
-            $response["message"] = "User has been successfully registered";
+            $response["message"] = "User successfully registered";
             $this->echoResponse(201, $response);
         }
         else if ($result == USER_REGISTRATION_FAILED) 
         {
-            // respond with failure
-            $response["error"] = true;
-            $response["message"] = "An error has occurred during registration";
+            $response["message"] = "An error occurred while registering";
             $this->echoResponse(500, $response);
         }
         else if ($result == USER_ALREADY_REGISTERED)
         {
-            // respond with failure
-            $response["error"] = true;
             $response["message"] = "The specified email address is already registered";
             $this->echoResponse(400, $response);
         }
@@ -368,26 +292,48 @@ class App extends Slim
         // fetching all chords from db handler
         $result = $this->db->getAllSongs();
 
-        // setting response
-        $response = array();
-        $response["error"] = false;
-        $response["songs"] = array();
-
-        // looping through result and preparing songs array
-        while ($song = $result->fetch_assoc())
-        {
-            $temp = array();
-            // getting fields from result
-            $temp["title"] = $song["TITLE"];
-            $temp["artist"] = $song["ARTIST"];
-            $temp["contents"] = $song["CONTENTS"];
-            $temp["chords"] = explode(",", $song["CHORDS"]);
-            // pushing values onto end of array
-            array_push($response["songs"], $temp);
+        if ($result != null) {
+            $response = array();
+            // looping through result and preparing songs array
+            while ($song = $result->fetch_assoc())
+            {
+                $temp = array();
+                // getting fields from result
+                $temp["title"] = $song["TITLE"];
+                $temp["artist"] = $song["ARTIST"];
+                $temp["audio_filename"] = $song["AUDIO_FILENAME"];
+                $temp["contents"] = $song["CONTENTS"];
+                $temp["chords"] = array();
+                // retrieving chords for song
+                $chords_result = $this->db->getSongChords($song["SONG_ID"]);
+                if ($chords_result != null) {
+                    while ($chord = $chords_result->fetch_assoc())
+                    {
+                        $chord_temp = array();
+                        // getting fields from result
+                        $chord_temp["chord_id"] = $chord["CHORD_ID"];
+                        $chord_temp["name"] = $chord["NAME"];
+                        $chord_temp["type"] = $chord["TYPE"];
+                        $chord_temp["level_required"] = $chord["LEVEL_REQUIRED"];
+                        $chord_temp["diagram_filename"] = $chord["DIAGRAM_FILENAME"];
+                        $chord_temp["video_filename"] = $chord["VIDEO_FILENAME"];
+                        // pushing values onto end of array
+                        array_push($temp["chords"], $chord_temp);
+                    }
+                    // pushing values onto end of array
+                    array_push($response, $temp);
+                }
+                else {
+                    $this->echoResponse(500, (object)[]);
+                    break;
+                }
+            }
+            // display response
+            $this->echoResponse(200, $response);
         }
-
-        // display response
-        $this->echoResponse(200, $response);
+        else {
+            $this->echoResponse(500, (object)[]);
+        }
     }
 
     /**
@@ -400,14 +346,12 @@ class App extends Slim
         // fetching all chords from db handler
         $result = $this->db->getAllChords();
 
-        // setting response
-        $response = array();
-        $response["error"] = false;
-        $response["chords"] = array();
-
         // looping through result and preparing chords array
         if ($result != null)
         {
+            // setting response
+            $response = array();
+            
             while ($chord = $result->fetch_assoc())
             {
                 $temp = array();
@@ -418,12 +362,16 @@ class App extends Slim
                 $temp["level_required"] = $chord["LEVEL_REQUIRED"];
                 $temp["diagram_filename"] = $chord["DIAGRAM_FILENAME"];
                 $temp["video_filename"] = $chord["VIDEO_FILENAME"];
+                $temp["audio_filename"] = $chord["AUDIO_FILENAME"];
                 // pushing values onto end of array
-                array_push($response["chords"], $temp);
+                array_push($response, $temp);
             }
             
             // display response
             $this->echoResponse(200, $response);
+        }
+        else {
+            $this->echoResponse(500, (object)[]);
         }
     }
     
@@ -443,60 +391,6 @@ class App extends Slim
         // displaying response in JSON
         echo json_encode($response);
     }
-
-     /**
-     * Verifying the required parameters in the request
-     * @param $required_fields required parameters
-     */
-    function verifyRequiredParams($required_fields) 
-    {
-        // assuming no error
-        $error = false;
-
-        // setting error fields to blank
-        $error_fields = "";
-
-        // getting request parameters
-        $request_params = $_REQUEST;
-
-        // handling PUT request parameters
-        if ($_SERVER['REQUEST_METHOD'] == 'PUT') 
-        {
-            // storing PUT parameters in request params variable
-            parse_str($this->request->getBody(), $request_params);
-        }
-
-        // looping through all the parameters
-        foreach($required_fields as $field) 
-        {
-            //if any required parameters are missing
-            if (!isset($request_params[$field]) || 
-                    strlen(trim($request_params[$field])) <= 0) 
-            {
-                // set error to true
-                $error = true;
-
-                // concatnating the missing parameters into error fields
-                $error_fields .= $field . ', ';
-            }
-        }
-
-        // if there is a parameter missing
-        if ($error)
-        {
-            // creating response array
-            $response = array();
-
-            // adding missing/empty required parameters to response array
-            $response["error"] = true;
-            $response["message"] = 'Required field(s) ' . 
-                    substr($error_fields, 0, -2) . ' is missing or empty ';
-
-            // responding with error
-            $this->echoResponse(400, $response);
-            $this->stop();
-        }
-    }
     
      /**
      * Checking if email is valid
@@ -507,7 +401,6 @@ class App extends Slim
         if (filter_var($email, FILTER_VALIDATE_EMAIL) == false) 
         {
             // respond with error if not valid
-            $response["error"] = true;
             $response["message"] = "Invalid email address";
             $this->echoResponse(400, $response);
             $this->stop();
