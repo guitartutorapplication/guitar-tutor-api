@@ -114,8 +114,9 @@ class UserController {
             
             if ($user->addUserChord($request->getParam('chord_id'))) {
                 // passing back achievements and level only if they were updated
-                $result = array();
+                $result = (object)[];
                 if ($old_achievements != $user->ACHIEVEMENTS) {
+                    $result = array();
                     $result["ACHIEVEMENTS"] = $user->ACHIEVEMENTS;
                 }
                 if ($old_level != $user->LEVEL) {
@@ -142,8 +143,9 @@ class UserController {
             
             if ($user->updateChordsNumTimesPractised($request->getParam('chord_ids'))) {
                 // passing back achievements and level only if they were updated
-                $result = array();
+                $result = (object)[];
                 if ($old_achievements != $user->ACHIEVEMENTS) {
+                    $result = array();
                     $result["ACHIEVEMENTS"] = $user->ACHIEVEMENTS;
                 }
                 if ($old_level != $user->LEVEL) {
