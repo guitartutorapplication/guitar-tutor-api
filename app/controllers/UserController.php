@@ -42,7 +42,7 @@ class UserController {
             return $response->withStatus(400)->withJson($message);
         }
         else {
-            $user = User::find($args['id'])->update([
+            $user = User::findOrFail($args['id'])->update([
                         'EMAIL' => $request->getParam('email'),
 			'NAME' => $request->getParam('name'),
 			'PASSWORD' => password_hash($request->getParam('password'),
@@ -71,7 +71,7 @@ class UserController {
     
     public function getUserChords($request, $response, $args) {
         // find chords own by user with specified id
-        $chords = User::find($args['id'])->chords;
+        $chords = User::findOrFail($args['id'])->chords;
                
         if ($chords != null || !empty($chords)) {
             $chords_array = array();
@@ -125,11 +125,11 @@ class UserController {
                 return $response->withStatus(201)->withJson($result);
             }
             else {
-                return $response->withStatus(400)->withJson((object)[]);
+                return $response->withStatus(500)->withJson((object)[]);
             }
         }
         else {
-            return $response->withStatus(400)->withJson((object)[]);
+            return $response->withStatus(500)->withJson((object)[]);
         }
     }
     
@@ -153,11 +153,11 @@ class UserController {
                 return $response->withStatus(200)->withJson($result);
             }
             else {
-                return $response->withStatus(400)->withJson((object)[]);
+                return $response->withStatus(500)->withJson((object)[]);
             }
         }
         else {
-            return $response->withStatus(400)->withJson((object)[]);
+            return $response->withStatus(500)->withJson((object)[]);
         }
     }
 }
