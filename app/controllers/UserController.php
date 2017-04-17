@@ -24,7 +24,7 @@ class UserController {
 		]);
             
             if ($user != null) {
-                return $response->withStatus(200)->withJson((object)[]);
+                return $response->withStatus(201)->withJson((object)[]);
             }
             else {
                 return $response->withStatus(500)->withJson((object)[]);
@@ -122,7 +122,7 @@ class UserController {
                     $result["LEVEL"] = $user->LEVEL;
                 }
                 
-                return $response->withStatus(200)->withJson($result);
+                return $response->withStatus(201)->withJson($result);
             }
             else {
                 return $response->withStatus(400)->withJson((object)[]);
