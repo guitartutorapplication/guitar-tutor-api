@@ -3,6 +3,8 @@
 require 'vendor/autoload.php';
 include 'bootstrap.php';
 
+use app\middleware\Authentication;
+
 $app = new \Slim\App(['settings' => ['displayErrorDetails' => true]]);
 
 $container = $app->getContainer();
@@ -17,19 +19,19 @@ $container['UserController'] = function() {
 };
 
 // /chords route
-$app->get('/chords', 'ChordController:getChords');
+$app->get('/chords', 'ChordController:getChords')->add(new Authentication());
 // /songs route
-$app->get('/songs', 'SongController:getSongs');
+$app->get('/songs', 'SongController:getSongs')->add(new Authentication());
 // /users route
 $app->post('/users', 'UserController:addUser');
 // /users/login route
 $app->post('/users/login', 'UserController:login');
 // /users/{id} route
-$app->put('/users/{id}', 'UserController:editUser');
-$app->get('/users/{id}', 'UserController:getUserDetails');
+$app->put('/users/{id}', 'UserController:editUser')->add(new Authentication());
+$app->get('/users/{id}', 'UserController:getUserDetails')->add(new Authentication());
 // /users/{id}/chords route
-$app->get('/users/{id}/chords', 'UserController:getUserChords');
-$app->post('/users/{id}/chords', 'UserController:addUserChord');
-$app->put('/users/{id}/chords', 'UserController:updateUserChords');
+$app->get('/users/{id}/chords', 'UserController:getUserChords')->add(new Authentication());
+$app->post('/users/{id}/chords', 'UserController:addUserChord')->add(new Authentication());
+$app->put('/users/{id}/chords', 'UserController:updateUserChords')->add(new Authentication());
 
 $app->run();
