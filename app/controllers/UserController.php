@@ -91,14 +91,15 @@ class UserController {
     }
     
     public function login($request, $response) {
-        $user_id = User::login($request->getParam('email'), $request->getParam(
+        $user = User::login($request->getParam('email'), $request->getParam(
                 'password'));
         
-        if ($user_id != null) {
-            // sending back user id if successful login
-            $user_id_array = array();
-            $user_id_array["USER_ID"] = $user_id;
-            return $response->withStatus(200)->withJson($user_id_array);
+        if ($user != null) {
+            // sending back user id and api key if successful login
+            $user_details = array();
+            $user_details["USER_ID"] = $user->USER_ID;
+            $user_details["API_KEY"] = $user->API_KEY;
+            return $response->withStatus(200)->withJson($user_details);
         }
         else {
             return $response->withStatus(400)->withJson((object)[]);

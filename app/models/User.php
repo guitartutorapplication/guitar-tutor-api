@@ -6,7 +6,7 @@ use Illuminate\Database\Capsule\Manager as DB;
 class User extends \Illuminate\Database\Eloquent\Model {
     protected $table = 'user'; 
     protected $primaryKey = 'USER_ID';
-    protected $hidden = ['PASSWORD'];
+    protected $hidden = ['PASSWORD', 'API_KEY'];
     protected $fillable = ['NAME', 'EMAIL', 'PASSWORD'];
     public $timestamps = false;
     
@@ -29,20 +29,30 @@ class User extends \Illuminate\Database\Eloquent\Model {
         if ($this->ACHIEVEMENTS == null) {
             $this->ACHIEVEMENTS = self::defaultAchievements;
         }
+        // generating API key if currently doesn't have a value (e.g when adding 
+        // new user)
+        if ($this->API_KEY == null) {
+            $this->API_KEY = md5(uniqid(rand(), true));
+        }
+    }
+    
+    public static function authenticate($api_key) {
+        // see if api key exists
+        $user = User::where('API_KEY', $api_key)->first();
+        return $user != null;
     }
     
     public static function login($email, $password) {
-        $user_id = null;
         // see if email exists
-        $user = self::where('EMAIL', $email)->first();
+        $user = User::where('EMAIL', $email)->first();
         
         if ($user != null) {
             // check password input against hashed password
-            if (password_verify($password, $user->PASSWORD)) {
-                $user_id = $user->USER_ID;
+            if (!password_verify($password, $user->PASSWORD)) {
+                $user = null;
             }
         }
-        return $user_id;
+        return $user;
     }
     
     public function addUserChord($chord_id) {
