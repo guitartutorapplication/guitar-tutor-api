@@ -11,9 +11,7 @@ class UserController {
         
         if (!empty($errors)) {
             // returning validation error
-            $message = array();
-            $message["message"] = current($errors);
-            return $response->withStatus(400)->withJson($message);
+            return $response->withStatus(400)->withJson($errors);
         }
         else {
             $user = User::create([
@@ -24,10 +22,10 @@ class UserController {
 		]);
             
             if ($user != null) {
-                return $response->withStatus(201)->withJson((object)[]);
+                return $response->withStatus(201)->withJson(array());
             }
             else {
-                return $response->withStatus(500)->withJson((object)[]);
+                return $response->withStatus(500)->withJson(array());
             }
         }
     }
@@ -37,9 +35,7 @@ class UserController {
         
         if (!empty($errors)) {
             // returning validation error
-            $message = array();
-            $message["message"] = current($errors);
-            return $response->withStatus(400)->withJson($message);
+            return $response->withStatus(400)->withJson($errors);
         }
         else {
             $user = User::findOrFail($args['id'])->update([
@@ -50,10 +46,10 @@ class UserController {
                         ]);
             
             if ($user != null) {
-                return $response->withStatus(200)->withJson((object)[]);
+                return $response->withStatus(200)->withJson(array());
             }
             else {
-                return $response->withStatus(500)->withJson((object)[]);
+                return $response->withStatus(500)->withJson(array());
             }
         }
     }
@@ -86,7 +82,7 @@ class UserController {
             return $response->withStatus(200)->withJson($chords_array); 
         }
         else {
-            return $response->withStatus(500)->withJson((object)[]);
+            return $response->withStatus(500)->withJson(array());
         }
     }
     
