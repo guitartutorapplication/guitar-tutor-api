@@ -12,7 +12,7 @@ class ChordController {
             return $response->withStatus(200)->withJson($chords); 
         }
         else {
-            return $response->withStatus(500)->withJson((object)[]);
+            return $response->withStatus(500)->withJson(array());
         }
     }
 }
