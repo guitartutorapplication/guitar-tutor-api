@@ -4,7 +4,7 @@ include 'config/credentials.php';
 include 'vendor/autoload.php';
 
 use Illuminate\Database\Capsule\Manager as Capsule; 
-
+// creates database connection
 $capsule = new Capsule();
 $capsule->addConnection([
     "driver" => "mysql",

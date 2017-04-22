@@ -9,7 +9,7 @@
     },
     "autoload" : {
         "psr-4": {
-            "app\\controllers\\": "app/controllers",
+            "app\\presenters\\": "app/presenters",
             "app\\models\\": "app/models",
             "app\\validation\\": "app/validation",
             "app\\middleware\\": "app/middleware"

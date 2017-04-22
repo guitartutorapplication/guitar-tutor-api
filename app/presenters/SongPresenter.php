@@ -1,10 +1,10 @@
 <?php
 
-namespace app\controllers;
+namespace app\presenters;
 
 use app\models\Song;
 
-class SongController {
+class SongPresenter {
     public function getSongs($request, $response) {
         // getting all songs with their chords (from song_chord table)
         $songs = Song::with('chords')->get();

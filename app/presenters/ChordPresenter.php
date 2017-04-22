@@ -1,10 +1,10 @@
 <?php
 
-namespace app\controllers;
+namespace app\presenters;
 
 use app\models\Chord;
 
-class ChordController {
+class ChordPresenter {
     public function getChords($request, $response) {
         $chords = Chord::all();
         
