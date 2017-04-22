@@ -1,11 +1,11 @@
 <?php
 
-namespace app\controllers;
+namespace app\presenters;
 
 use app\models\User;
 use app\validation\Validator;
 
-class UserController {
+class UserPresenter {
     public function addUser($request, $response) {
         $errors = Validator::validate($request->getParams(), null);
         
